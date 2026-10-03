@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 — October 3, 2026
+
+- Chat with your Claude plan through Claude Code (GitHub build): pick "Claude Code" in the chat's model picker or in Settings → Chat, then Sonnet, Opus or Haiku. Coucou runs your own `claude` command, so no API key is needed and Coucou never touches your Claude login. The chat keeps web search only: no file, shell or MCP access, and it never shows up as an agent session in the notch.
+- Remove the saved Anthropic key from Settings → Chat.
+- The island folds 1.5 s after the mouse leaves instead of 15 s (6 s in the chat, longer while an answer is on its way).
+
 ## 0.1.2 — October 2, 2026
 
 - Codex support (GitHub build): sessions show up live on the Codex pill, and permission requests get Allow and Deny in the notch. Install from Settings → Codex Hooks, then trust the hooks once with /hooks in Codex (#130) — thanks @lacatu5
