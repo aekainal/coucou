@@ -200,6 +200,13 @@ final class IslandWindowController: NSWindowController {
         }
 
         fsm.isHeldOpen = { AppState.shared.pendingApproval != nil }
+        // Fold quickly once the mouse leaves; give the chat more time so typing
+        // with the pointer elsewhere doesn't close it, and never fold mid-answer.
+        fsm.homeToPetitDelayProvider = {
+            let state = AppState.shared
+            guard state.view == .prompt else { return 1.5 }
+            return state.stateOverride == .thinking ? 30 : 6
+        }
     }
 
     // MARK: - 60 Hz polling loop

@@ -21,7 +21,10 @@ final class IslandStateMachine {
     var isHeldOpen: (() -> Bool)?
 
     /// home → petit delay (seconds). Override for debug.
-    var homeToPetitDelay: TimeInterval = 15
+    var homeToPetitDelay: TimeInterval = 1.5
+    /// When set, overrides `homeToPetitDelay` each time the collapse is scheduled
+    /// (e.g. a longer delay while the chat is open).
+    var homeToPetitDelayProvider: (() -> TimeInterval)?
     /// petit → hidden delay (seconds). Override for debug.
     var petitToHiddenDelay: TimeInterval = 60
     /// coucou → petit delay after greeting animation ends (no hover). ~0.6s syncs with canvas collapse.
@@ -165,7 +168,7 @@ final class IslandStateMachine {
             self.transition(to: .petit)
         }
         homeCollapseWork = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + homeToPetitDelay, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + (homeToPetitDelayProvider?() ?? homeToPetitDelay), execute: item)
     }
 
     func cancelTimers() {
