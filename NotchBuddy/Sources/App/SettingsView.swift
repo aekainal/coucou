@@ -551,15 +551,68 @@ struct SettingsView: View {
     // MARK: - Chat section
 
     @ViewBuilder private var chatSection: some View {
+        #if !APPSTORE
+        GroupBox("Claude Code — your Claude plan") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Chat with the Claude plan you're logged into in Claude Code. No API key: Coucou runs your own `claude` command.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+
+                if let cli = ClaudeCodeChat.findCLI() {
+                    HStack(spacing: 6) {
+                        Circle().fill(Color(hex: "#22C55E")).frame(width: 7, height: 7)
+                        Text(cli)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+
+                    Picker("Model", selection: $state.claudeCodeChatModel) {
+                        ForEach(ClaudeCodeChat.models, id: \.id) { model in
+                            Text(model.label).tag(model.id)
+                        }
+                    }
+
+                    if state.chatProvider == .claudeCode {
+                        Text("✓ The chat uses Claude Code.")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color(hex: "#22C55E"))
+                    } else {
+                        Button("Use for the chat") {
+                            state.chatProvider = .claudeCode
+                            statusMessage = "✓ The chat now uses Claude Code."
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                } else {
+                    Text("Claude Code isn't installed. Install it, run `claude` once in a terminal to log in, then reopen Settings.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(6)
+        }
+        #endif
+
         GroupBox("Anthropic API") {
             VStack(alignment: .leading, spacing: 8) {
                 SecureField("API key (sk-ant-…)", text: $apiKey)
                     .textFieldStyle(.roundedBorder)
-                Button("Save") {
-                    KeychainStore.shared.set("anthropic-api-key", value: apiKey)
-                    statusMessage = "✓ Key saved."
+                HStack {
+                    Button("Save") {
+                        KeychainStore.shared.set("anthropic-api-key", value: apiKey)
+                        statusMessage = "✓ Key saved."
+                    }
+                    .buttonStyle(.borderedProminent)
+                    if KeychainStore.shared.get("anthropic-api-key") != nil {
+                        Button("Remove key") {
+                            KeychainStore.shared.remove("anthropic-api-key")
+                            apiKey = ""
+                            state.fetchedProviderModels[.anthropic] = nil
+                            statusMessage = "Anthropic key removed."
+                        }
+                        .buttonStyle(.bordered)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
 
                 Divider().padding(.vertical, 2)
 
