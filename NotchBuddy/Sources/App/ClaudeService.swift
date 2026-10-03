@@ -186,8 +186,12 @@ final class ClaudeService {
     // Multi-turn conversation messages (for API)
     private var conversationMessages: [[String: Any]] = []
 
+    // Claude Code keeps the conversation itself; we only remember which session to resume.
+    private var claudeCodeSessionID: String?
+
     func clearConversation() {
         conversationMessages = []
+        claudeCodeSessionID = nil
     }
 
     /// Resolved once: NSFullUserName() is a system call, and the name cannot change under us
@@ -217,6 +221,10 @@ final class ClaudeService {
     // MARK: - Chat (multi-turn, natural text + web search)
 
     func chat(query: String, context: PromptContext?, state: AppState) async {
+        if state.chatProvider == .claudeCode {
+            await chatClaudeCode(query: query, context: context, state: state)
+            return
+        }
         guard state.chatProvider == .anthropic else {
             await chatOpenAICompatible(query: query, context: context, state: state)
             return
@@ -279,7 +287,7 @@ final class ClaudeService {
             switch provider {
             case .google:  baseURL = "https://generativelanguage.googleapis.com/v1beta/openai"
             case .openai:  baseURL = "https://api.openai.com/v1"
-            case .anthropic, .ollama, .lmstudio: baseURL = ""
+            case .anthropic, .ollama, .lmstudio, .claudeCode: baseURL = ""
             }
         }
 
@@ -440,6 +448,64 @@ final class ClaudeService {
                 conversationMessages.removeLast()
                 await showError(error.localizedDescription, state: state)
             }
+        }
+    }
+
+    // MARK: - Claude Code chat (the user's Claude plan, through `claude -p`)
+
+    func chatClaudeCode(query: String, context: PromptContext?, state: AppState) async {
+        // Context goes in the first turn only, like the other providers.
+        var prompt = query
+        if claudeCodeSessionID == nil, let ctx = context {
+            switch ctx {
+            case .window(let app, let title, let url):
+                var prefix = "Context — App: \(app), Window: \(title)"
+                if let u = url { prefix += ", URL: \(u)" }
+                prompt = prefix + "\n\n" + query
+            case .file(let name, let fileURL):
+                let binaryExts = ["pdf", "jpg", "jpeg", "png", "gif", "webp"]
+                if let fileURL, !binaryExts.contains(fileURL.pathExtension.lowercased()),
+                   let text = try? String(contentsOf: fileURL, encoding: .utf8), !text.isEmpty {
+                    let truncated = text.count > 24_000 ? String(text.prefix(24_000)) + "\n[truncated]" : text
+                    prompt = "File: \(name)\n\n\(truncated)\n\n" + query
+                } else {
+                    prompt = "File: \(name)\n\n" + query
+                }
+            }
+        }
+
+        // Placeholder (hidden until first token via ChatBubble empty-content guard)
+        let placeholder = ChatMessage(role: .assistant, content: "")
+        let msgId = placeholder.id
+        state.chatHistory.append(placeholder)
+        state.stateOverride = .thinking
+
+        do {
+            let (final, sessionID) = try await ClaudeCodeChat.streamChat(
+                prompt: prompt,
+                model: state.claudeCodeChatModel,
+                systemPrompt: systemPrompt,
+                resumeSessionID: claudeCodeSessionID
+            ) { [state, msgId] visible in
+                if !visible.isEmpty, state.stateOverride == .thinking {
+                    state.stateOverride = nil   // hide typing dots on first visible text
+                }
+                if let idx = state.chatHistory.firstIndex(where: { $0.id == msgId }) {
+                    state.chatHistory[idx].content = visible
+                }
+            }
+            claudeCodeSessionID = sessionID
+            if let idx = state.chatHistory.firstIndex(where: { $0.id == msgId }) {
+                state.chatHistory[idx].content = final
+            }
+            state.stateOverride = nil
+            state.view = .prompt
+            NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.happy)
+        } catch {
+            state.chatHistory.removeAll { $0.id == msgId }
+            state.stateOverride = nil
+            let message = (error as? ClaudeCodeChatError)?.localizedDescription ?? error.localizedDescription
+            await showError(message, state: state)
         }
     }
 

@@ -206,6 +206,8 @@ struct OverviewView: View {
             switchChatProvider(.ollama)
         case "ai_lmstudio":
             switchChatProvider(.lmstudio)
+        case "ai_claudecode":
+            switchChatProvider(.claudeCode)
         case "integration_music":
             #if !APPSTORE
             MusicController.shared.openMusic()
@@ -1118,6 +1120,7 @@ struct ModelPickerView: View {
             let visibleProviders = ChatProvider.allCases.filter { p in
                 if p == .ollama   { return !AppState.shared.ollamaServerURL.isEmpty   || state.chatProvider == .ollama }
                 if p == .lmstudio { return !AppState.shared.lmstudioServerURL.isEmpty || state.chatProvider == .lmstudio }
+                if p == .claudeCode { return ClaudeCodeChat.isAvailable || state.chatProvider == .claudeCode }
                 return true
             }
             ChipFlowLayout(spacing: 6) {
@@ -1205,6 +1208,7 @@ struct ModelPickerView: View {
                             case .openai:    state.openAIChatModel = model.id
                             case .ollama:    state.ollamaChatModel = model.id
                             case .lmstudio:  state.lmstudioChatModel = model.id
+                            case .claudeCode: state.claudeCodeChatModel = model.id
                             }
                             isPresented = false
                             SoundEngine.shared.play("blip")
@@ -1434,6 +1438,7 @@ struct IntegrationCardView: View {
         case "ai_openai":     return KeychainStore.shared.get("openai-api-key")    != nil
         case "ai_ollama":     return !AppState.shared.ollamaServerURL.isEmpty
         case "ai_lmstudio":   return !AppState.shared.lmstudioServerURL.isEmpty
+        case "ai_claudecode": return ClaudeCodeChat.isAvailable
         case "integration_resend":  return KeychainStore.shared.get("resend-api-key") != nil
         case "integration_n8n":     return KeychainStore.shared.get("n8n-api-key")    != nil
         case "integration_vercel":  return KeychainStore.shared.get("vercel-token")   != nil
@@ -1553,6 +1558,7 @@ struct IntegrationCardView: View {
                     let model = provider == .ollama ? appState.ollamaChatModel : appState.lmstudioChatModel
                     return "Connected · \(model)"
                 }
+                if provider == .claudeCode { return "Your Claude plan · \(appState.claudeCodeChatModel)" }
                 let model: String
                 switch task.id {
                 case "ai_anthropic": model = appState.claudeModel
@@ -1567,6 +1573,7 @@ struct IntegrationCardView: View {
             if isHooks { return "Hooks not installed" }
             if isAI {
                 let provider = ChatProvider(pillID: task.id)!
+                if provider == .claudeCode { return "Claude Code not installed" }
                 return provider.isLocal ? "Not connected" : "Key not configured"
             }
             return "Key not configured"

@@ -1173,6 +1173,8 @@ struct SettingsView: View {
                 if let provider = ChatProvider(pillID: def.id), provider.isLocal {
                     let url = provider == .ollama ? state.ollamaServerURL : state.lmstudioServerURL
                     if url.isEmpty { return "Not connected" }
+                } else if def.id == "ai_claudecode" {
+                    if !ClaudeCodeChat.isAvailable { return "Claude Code not installed" }
                 } else {
                     let keyId = def.id == "ai_anthropic" ? "anthropic-api-key"
                                : def.id == "ai_google"    ? "google-api-key" : "openai-api-key"
